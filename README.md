@@ -3,6 +3,22 @@
 A React + TypeScript dashboard for mock exam analytics, exam countdowns, study
 playlists, and local backups. Vite builds the app and its offline PWA shell.
 
+## Deploy to GitHub Pages
+
+The deployment workflow is `.github/workflows/deploy.yml`.
+
+1. Push this project, including `package-lock.json` and `.github/workflows/deploy.yml`,
+   to your GitHub repository.
+2. In the repository's **Settings > Pages > Build and deployment**, set
+   **Source** to **GitHub Actions**.
+3. Push to `main` or `master`, or run **Deploy to GitHub Pages** manually from
+   the **Actions** tab on your publishing branch.
+
+The workflow installs dependencies with `npm ci`, runs the tests and production
+build, then deploys only `dist/`. The published URL appears in the deployment job.
+Vite's existing relative base (`./`) supports repository subpaths without needing
+to hardcode your repository name. No personal access token is required.
+
 ## Run locally
 
 ```powershell
