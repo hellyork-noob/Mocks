@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, type CSSProperties } from "react";
+import { lazy, Suspense, useEffect, useMemo, type CSSProperties } from "react";
 import { useUI } from "./uiStore";
 import { useWorkspaceData } from "./useWorkspaceData";
 import Sidebar from "./Sidebar";
@@ -17,14 +17,16 @@ const PlaylistBoard = lazy(() => import('../features/playlists/PlaylistBoard').t
 export default function App() {
     const { view, theme, compact, setView, exam, setExam, setSettingsSection, } = useUI();
     const { mocks, exams, playlists, customProfiles, tasks, goals, sessions, reload, dbReady, dbError } = useWorkspaceData();
+    const availableExams = useMemo(() => [...new Set([
+        ...customProfiles.map(profile => profile.key),
+        ...mocks.map(mock => mock.exam).filter(Boolean),
+    ])], [customProfiles, mocks]);
     useEffect(() => {
         if (!dbReady)
             return;
-        if (customProfiles.length && !customProfiles.some((p) => p.key === exam))
-            setExam(customProfiles[0].key);
-        else if (!customProfiles.length && exam)
-            setExam("");
-    }, [customProfiles, exam, setExam, dbReady]);
+        if (!availableExams.includes(exam) && exam !== (availableExams[0] ?? ''))
+            setExam(availableExams[0] ?? '');
+    }, [availableExams, exam, setExam, dbReady]);
     const resolvedTheme = useResolvedTheme(theme);
     const preferences = useAppearance(state => state.preferences);
     const colors = appearanceColors(preferences, resolvedTheme);
@@ -37,7 +39,6 @@ export default function App() {
         "--accentbg": `${colors.accent}1c`,
         "--ui-focus": `${colors.accent}40`,
     } as CSSProperties;
-    const availableExams = customProfiles.map((p) => p.key);
     return (<div className={"app " + resolvedTheme + (compact ? " compact" : "")} data-glass-performance={glass.performance} data-density={preferences.density} style={appearanceStyle}>
       {dbError && (<div role="alert" style={{
                 position: "fixed",
@@ -83,7 +84,7 @@ export default function App() {
                 </button>
               </div>))}
           {view === "Add Mock" &&
-            (exam ? (<>
+            (exam && customProfiles.some(profile => profile.key === exam) ? (<>
                 <MockForm key={exam} exam={exam} custom={customProfiles.find((p) => p.key === exam)} onSave={reload} onDone={() => setView("Mock History")}/>
               </>) : (<div className="panel p5-empty-start">
                 <h3>Create an exam first</h3>
