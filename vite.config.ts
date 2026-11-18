@@ -12,7 +12,7 @@ export default defineConfig({
       includeAssets: ['icons/icon-192.png', 'icons/icon-512.png'],
       manifest: {
         name: 'Advance Analyzer v2.1',
-        short_name: 'Analyzer' v2.1,
+        short_name: 'Analyzer v2.1',
         description: 'Offline-first mock exam analytics',
         theme_color: '#0b1020',
         background_color: '#0b1020',
