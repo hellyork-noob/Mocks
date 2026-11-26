@@ -46,10 +46,10 @@
 .analytics-single-page .recharts-tooltip-label { font-weight: 650; margin-bottom: 5px !important; }
 .analytics-single-page .recharts-tooltip-cursor { stroke: var(--muted); stroke-dasharray: 4 5; }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .analytics-single-page .v22-subject-card,
-  .analytics-single-page .v22-chart-card { transition: transform 180ms ease, border-color 180ms ease; }
-  .analytics-single-page .v22-subject-card:hover,
-  .analytics-single-page .v22-chart-card:hover {
+  .app[data-glass-performance="false"] .analytics-single-page :is(.v22-subject-card, .v22-chart-card) {
+    transition: transform 180ms ease, border-color 180ms ease;
+  }
+  .app[data-glass-performance="false"] .analytics-single-page :is(.v22-subject-card, .v22-chart-card):hover {
     transform: translateY(-3px);
     border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
   }

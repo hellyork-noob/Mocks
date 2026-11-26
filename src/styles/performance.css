@@ -34,3 +34,19 @@
 .history-pagination > span:first-child {
   margin-right: auto;
 }
+
+/* Plot containers already have explicit heights from ResponsiveContainer.
+   Skip their offscreen contents without changing the page's scroll height. */
+.analytics-single-page .recharts-responsive-container {
+  content-visibility: auto;
+}
+
+/* Keep the glass fill and highlights while reducing the area each card repaints. */
+.app[data-glass-performance="true"] main {
+  --glass-elevation: 0 5px 12px rgb(0 0 0 / calc(.34 * var(--glass-shadow-depth))),
+    inset 0 1px 0 rgb(255 255 255 / calc(.8 * var(--glass-border)));
+}
+
+.app[data-glass-performance="true"] .glass-preview-sidebar {
+  backdrop-filter: none;
+}
