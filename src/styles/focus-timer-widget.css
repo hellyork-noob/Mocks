@@ -23,6 +23,7 @@
   right: 16px;
   bottom: 16px;
   z-index: 100;
+  width: max-content;
   max-width: calc(100vw - 32px);
   padding: 9px;
   border: 1px solid var(--widget-edge);
@@ -52,6 +53,22 @@
 
 .focus-widget button:disabled { opacity: .6; cursor: default; }
 
+.focus-widget .focus-widget-grip {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--widget-muted);
+  cursor: grab;
+  touch-action: none;
+}
+.focus-widget .focus-widget-grip:active { cursor: grabbing; }
+.focus-widget .focus-widget-grip:hover { color: var(--widget-text); }
+
 .focus-widget-readout {
   display: flex;
   align-items: center;
@@ -60,6 +77,7 @@
   border: 0;
   background: transparent;
   text-align: left;
+  min-width: 0;
 }
 
 .focus-widget-readout > svg { color: var(--widget-accent); flex-shrink: 0; }
