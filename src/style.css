@@ -17,7 +17,6 @@
 @import "./styles/responsive.css";
 @import "./styles/theme.css";
 @import "./styles/dialogs.css";
-@import "./styles/performance.css";
 @import "./styles/study.css";
 @import "./styles/sidebar-controls.css";
 @import "./styles/workspace-upgrades.css";
@@ -30,3 +29,4 @@
 @import "./styles/select-menu.css";
 
 @import "./styles/focus-timer-widget.css";
+@import "./styles/performance.css";
