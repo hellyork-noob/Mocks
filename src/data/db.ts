@@ -1,6 +1,10 @@
 import type { SectionResult, Mock, ExamSectionConfig, CustomExamProfile, Exam, PlaylistVideo, Playlist } from "./types";
 export type { SectionResult, Mock, ExamSectionConfig, CustomExamProfile, Exam, PlaylistVideo, Playlist } from "./types";
 import Dexie, { type Table } from 'dexie';
+import { normalizeAppearance } from '../app/appearance';
+import { normalizePresets, useAppearance } from '../app/appearanceStore';
+import { useUI } from '../app/uiStore';
+import { allBackupCategories, backupCategories, parseBackup, type BackupCategory } from './backupCategories';
 import type { StudyTask, StudyGoal, FocusSession, FocusTimer } from './types';
 class AnalyzerDB extends Dexie {
     mocks!: Table<Mock, number>;
@@ -28,53 +32,100 @@ export async function readBackupRecords() {
         return { mocks, exams, playlists, customExamProfiles, studyTasks, studyGoals, focusSessions };
     });
 }
-export async function exportBackup() {
-    const payload = { app: 'Advance Analyzer v2', schema: 3, exportedAt: new Date().toISOString(), ...await readBackupRecords() };
+export function readAppearanceBackup() {
+    const { preferences, presets } = useAppearance.getState();
+    return { preferences, presets, theme: useUI.getState().theme };
+}
+
+export async function exportBackup(selection: BackupCategory[] = allBackupCategories) {
+    if (!selection.length) throw new Error('Select at least one category to export.');
+    const records = { ...await readBackupRecords(), appearance: readAppearanceBackup() };
+    const keys = selection.flatMap(category => [...backupCategories[category].keys]);
+    const payload = {
+        app: 'Advance Analyzer v2', schema: 4, exportedAt: new Date().toISOString(),
+        ...Object.fromEntries(keys.map(key => [key, records[key]])),
+    };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'advance-analyzer-backup.json'; a.click(); URL.revokeObjectURL(url);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'advance-analyzer-backup.json';
+    document.body.append(link);
+    try { link.click(); }
+    finally {
+        link.remove();
+        // Give browsers time to start reading the download.
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+    }
 }
-/** Restore a complete v2 backup atomically. No database deletion or schema migration. */
-export async function importBackup(value: unknown): Promise<void> {
-    if (!value || typeof value !== 'object')
-        throw new Error('Invalid backup file');
-    const data = value as Record<string, unknown>;
-    if (data.app !== 'Advance Analyzer v2')
-        throw new Error('This is not an Advance Analyzer v2 backup');
-    for (const key of ['mocks', 'exams', 'playlists', 'customExamProfiles'])
-        if (!Array.isArray(data[key]))
-            throw new Error('Backup is missing ' + key);
-    const mocks = data.mocks as Mock[], exams = data.exams as Exam[], playlists = data.playlists as Playlist[], profiles = data.customExamProfiles as CustomExamProfile[];
-    if (mocks.some(m => !m || typeof m.exam !== 'string' || typeof m.title !== 'string' || typeof m.score !== 'number' || typeof m.maxScore !== 'number'))
-        throw new Error('Invalid mock records');
-    if (profiles.some(p => !p || typeof p.key !== 'string' || !Array.isArray(p.sections)))
-        throw new Error('Invalid exam profiles');
-    if (exams.some(e => !e || typeof e.name !== 'string' ||
-        (e.date !== undefined && typeof e.date !== 'string') ||
-        (e.appliedAndPaid !== undefined && typeof e.appliedAndPaid !== 'boolean')))
-        throw new Error('Invalid countdown records');
-    if (playlists.some(p => !p || typeof p.title !== 'string' || typeof p.url !== 'string'))
-        throw new Error('Invalid playlist records');
-    const hasStudy = ['studyTasks', 'studyGoals', 'focusSessions'].some(key => key in data) || data.schema === 3;
-    if (hasStudy) validateStudyBackup(data);
-    await db.transaction('rw', [db.mocks, db.exams, db.playlists, db.customExamProfiles, db.studyTasks, db.studyGoals, db.focusSessions], async () => {
-        await Promise.all([db.mocks.clear(), db.exams.clear(), db.playlists.clear(), db.customExamProfiles.clear()]);
-        if (mocks.length)
-            await db.mocks.bulkAdd(mocks);
-        if (exams.length)
-            await db.exams.bulkAdd(exams);
-        if (playlists.length)
-            await db.playlists.bulkAdd(playlists);
-        if (profiles.length)
-            await db.customExamProfiles.bulkAdd(profiles);
-        if (hasStudy) {
-            await Promise.all([db.studyTasks.clear(), db.studyGoals.clear(), db.focusSessions.clear()]);
-            await db.studyTasks.bulkAdd(data.studyTasks as StudyTask[]);
-            await db.studyGoals.bulkAdd(data.studyGoals as StudyGoal[]);
-            await db.focusSessions.bulkAdd(data.focusSessions as FocusSession[]);
+
+export async function importBackup(value: unknown, selection?: BackupCategory[]): Promise<void> {
+    const { data, categories } = parseBackup(value);
+    const selected = new Set(selection ?? categories);
+    if (!selected.size) throw new Error('Select at least one category to restore.');
+    if ([...selected].some(category => !categories.includes(category))) throw new Error('A selected category is missing from this backup.');
+
+    function records<T>(key: string, valid: (record: T) => boolean): T[] {
+        const rows = data[key];
+        if (!Array.isArray(rows) || rows.some(record => !record || !valid(record))) {
+            throw new Error('Invalid or missing backup records for ' + key);
         }
-    });
+        return rows as T[];
+    }
+
+    const mocks = selected.has('mocks') ? records<Mock>('mocks', m => typeof m.exam === 'string' && typeof m.title === 'string' &&
+        typeof m.date === 'string' && typeof m.subject === 'string' && Number.isFinite(m.score) && Number.isFinite(m.maxScore)) : undefined;
+    const profiles = selected.has('profiles') ? records<CustomExamProfile>('customExamProfiles', p => typeof p.key === 'string' && Array.isArray(p.sections)) : undefined;
+    const exams = selected.has('countdowns') ? records<Exam>('exams', e => typeof e.name === 'string' &&
+        (e.date === undefined || typeof e.date === 'string') && (e.appliedAndPaid === undefined || typeof e.appliedAndPaid === 'boolean')) : undefined;
+    const playlists = selected.has('playlists') ? records<Playlist>('playlists', p => typeof p.title === 'string' && typeof p.url === 'string') : undefined;
+    const study = selected.has('study');
+    if (study) validateStudyBackup(data);
+    const appearance = selected.has('appearance') ? validateAppearanceBackup(data.appearance) : undefined;
+
+    async function replace<T, K>(table: Table<T, K>, rows: T[]) {
+        await table.clear();
+        await table.bulkAdd(rows);
+    }
+
+    if (mocks || profiles || exams || playlists || study) {
+        await db.transaction('rw', [db.mocks, db.exams, db.playlists, db.customExamProfiles, db.studyTasks, db.studyGoals, db.focusSessions, db.focusTimers], async () => {
+            if (study && await db.focusTimers.get('active')) {
+                throw new Error('Finish or discard the active timer before restoring study data.');
+            }
+            if (mocks) await replace(db.mocks, mocks);
+            if (profiles) await replace(db.customExamProfiles, profiles);
+            if (exams) await replace(db.exams, exams);
+            if (playlists) await replace(db.playlists, playlists);
+            if (study) {
+                await replace(db.studyTasks, data.studyTasks as StudyTask[]);
+                await replace(db.studyGoals, data.studyGoals as StudyGoal[]);
+                await replace(db.focusSessions, data.focusSessions as FocusSession[]);
+            }
+        });
+    }
+
+    if (appearance) {
+        try {
+            useAppearance.getState().restore(appearance.preferences, appearance.presets);
+            useUI.getState().setTheme(appearance.theme);
+        } catch {
+            throw new Error('The browser could not save the restored appearance. Any selected records were restored.');
+        }
+    }
+}
+
+function validateAppearanceBackup(value: unknown) {
+    const appearance = value as Partial<ReturnType<typeof readAppearanceBackup>> | null | undefined;
+    if (!appearance || !appearance.preferences || typeof appearance.preferences !== 'object' ||
+        !Array.isArray(appearance.presets) || (appearance.theme !== 'dark' && appearance.theme !== 'light' && appearance.theme !== 'system')) {
+        throw new Error('Invalid appearance backup.');
+    }
+    return {
+        preferences: normalizeAppearance(appearance.preferences),
+        presets: normalizePresets(appearance.presets),
+        theme: appearance.theme,
+    };
 }
 
 function validateStudyBackup(data: Record<string, unknown>) {
@@ -84,6 +135,8 @@ function validateStudyBackup(data: Record<string, unknown>) {
     const isDate = (value: unknown) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value));
     if ((data.studyTasks as StudyTask[]).some(task => !task || !isDate(task.date) || typeof task.title !== 'string' ||
         !Number.isFinite(task.estimatedMinutes) || task.estimatedMinutes < 0 || typeof task.completed !== 'boolean' ||
+        (task.scheduledTime !== undefined && (typeof task.scheduledTime !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(task.scheduledTime))) ||
+        (task.reminderMinutes !== undefined && (!task.scheduledTime || !Number.isInteger(task.reminderMinutes) || task.reminderMinutes < 0 || task.reminderMinutes > 1440)) ||
         !['high', 'normal', 'low'].includes(task.priority) || !Number.isFinite(task.createdAt))) throw new Error('Invalid study tasks');
     if ((data.studyGoals as StudyGoal[]).some(goal => !goal || !isDate(goal.date) || !Number.isFinite(goal.targetMinutes) || goal.targetMinutes < 1 || goal.targetMinutes > 1440)) throw new Error('Invalid study goals');
     if ((data.focusSessions as FocusSession[]).some(session => !session || typeof session.token !== 'string' || typeof session.title !== 'string' ||

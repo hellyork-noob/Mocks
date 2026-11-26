@@ -76,6 +76,10 @@ export type StudyTask = {
     priority: 'high' | 'normal' | 'low';
     completed: boolean;
     createdAt: number;
+    scheduledTime?: string;
+    reminderMinutes?: number;
+    reminderDismissed?: boolean;
+    reminderNotified?: boolean;
 };
 export type StudyGoal = { date: string; targetMinutes: number };
 export type FocusSegment = { start: number; end: number };
