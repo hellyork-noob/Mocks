@@ -46,9 +46,9 @@ export default function FocusTimerCard({ tasks, setup, onSetupChange, onSelectTa
   return <article className="panel study-timer">
     <div className="panelhead"><h3><Timer size={18}/> Focus period</h3></div>
     {!timer && <div className="segmented study-timer-modes" aria-label="Timer mode">
+      <button type="button" className={mode === 'stopwatch' ? 'selected' : ''} onClick={() => onSetupChange({ ...setup, mode: 'stopwatch' })}><Clock size={14}/> Stopwatch</button>
       <button type="button" className={mode === 'focus' ? 'selected' : ''} onClick={() => onSelectTask(selectedTask)}><Timer size={14}/> Focus</button>
       <button type="button" className={mode === 'break' ? 'selected' : ''} onClick={() => onSetupChange({ ...setup, mode: 'break', minutes: '5' })}><Coffee size={14}/> Break</button>
-      <button type="button" className={mode === 'stopwatch' ? 'selected' : ''} onClick={() => onSetupChange({ ...setup, mode: 'stopwatch' })}><Clock size={14}/> Stopwatch</button>
     </div>}
     <div className="study-clock" role="timer" aria-label={isStopwatch ? 'Stopwatch elapsed time' : `${timer?.mode ?? mode} time remaining`}>
       {formatClock(displaySeconds)}
@@ -72,13 +72,13 @@ export default function FocusTimerCard({ tasks, setup, onSetupChange, onSelectTa
     }}>
       {mode !== 'stopwatch' && <>
         <div className="study-presets">{(mode === 'focus' ? [25, 50, 90] : [5, 10, 15]).map(preset => <button className={Number(minutes) === preset ? 'secondary selected' : 'secondary'} type="button" key={preset} onClick={() => setMinutes(String(preset))}>{preset} min</button>)}</div>
-        <label>Duration (minutes)<input aria-label="Focus duration" type="number" required min="1" max={maximumTimerMinutes[mode]} value={minutes} onChange={event => setMinutes(event.target.value)}/></label>
+        <label className="study-timer-duration">Minutes<input aria-label="Focus duration" type="number" required min="1" max={maximumTimerMinutes[mode]} value={minutes} onChange={event => setMinutes(event.target.value)}/></label>
       </>}
       {mode === 'focus' && <>
         <label>Link a task<select aria-label="Focus task" value={selectedTask} onChange={event => onSelectTask(event.target.value)}><option value="">Independent study</option>{tasks.filter(task => !task.completed || String(task.id) === selectedTask).map(task => <option value={task.id} key={task.id}>{task.title}</option>)}</select></label>
         {!task && <label>Session name<input aria-label="Focus session name" maxLength={120} placeholder="e.g. Quant revision" value={title} onChange={event => setTitle(event.target.value)}/></label>}
       </>}
-      <small className="muted">Keeps running across pages and reloads. Focus time is added to your totals when saved.</small>
+      <small className="muted">Keeps running across pages and reloads.</small>
     </form>}
     {error && <p className="error" role="alert">{error}</p>}
     {notice && <p className="study-notice" role="status">{notice}</p>}
