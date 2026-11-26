@@ -1,7 +1,34 @@
-import { defaultGlass, glassPresets, glassSliders, type GlassSettings, type ResolvedTheme } from '../../app/appearance';
+import { useState } from 'react';
+import { defaultGlass, glassPresets, glassRgba, glassSliders, normalizeGlassColor, parseGlassColor, type GlassSettings, type ResolvedTheme } from '../../app/appearance';
 import { useAppearance } from '../../app/appearanceStore';
 
 type SliderKey = keyof typeof glassSliders;
+
+function GlassColorInput({ label, value, onChange }: { label: string; value: string; onChange: (color: string) => void }) {
+  const { hex, alpha } = parseGlassColor(value) ?? { hex: '#000000', alpha: 1 };
+  const [draft, setDraft] = useState<string | null>(null);
+  const [invalid, setInvalid] = useState(false);
+  return <div className="glass-color-editor">
+    <label>{label} RGBA
+      <input type="text" spellCheck={false} autoComplete="off" value={draft ?? glassRgba(hex, alpha)}
+        onChange={event => {
+          const text = event.target.value;
+          setDraft(text);
+          const color = normalizeGlassColor(text);
+          setInvalid(color === null);
+          if (color) onChange(color);
+        }}
+        onBlur={() => setDraft(null)}
+        onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur(); }}/>
+    </label>
+    <input type="color" aria-label={label + ' color picker'} value={hex} onChange={event => {
+      setDraft(null);
+      setInvalid(false);
+      onChange(alpha === 1 ? event.target.value : glassRgba(event.target.value, alpha));
+    }}/>
+    {invalid && <small role="status">Color kept. Use RGBA with channels from 0 to 255 and alpha from 0 to 1.</small>}
+  </div>;
+}
 
 export default function BackgroundGlassSettings({ theme }: { theme: ResolvedTheme }) {
   const { preferences, update } = useAppearance();
@@ -44,13 +71,11 @@ export default function BackgroundGlassSettings({ theme }: { theme: ResolvedThem
         </select>
       </label>
       {(['Start', 'Middle', 'End'] as const).map((label, index) =>
-        <label className="appearance-custom" key={label}>{label} color
-          <input type="color" value={settings.colors[index]} onChange={event => {
-            const colors: GlassSettings['colors'] = [...settings.colors];
-            colors[index] = event.target.value;
-            setGlass({ colors });
-          }}/>
-        </label>,
+        <GlassColorInput key={theme + label} label={label} value={settings.colors[index]} onChange={color => {
+          const colors: GlassSettings['colors'] = [...useAppearance.getState().preferences.glass[theme].colors];
+          colors[index] = color;
+          setGlass({ colors });
+        }}/>,
       )}
     </div>
     <div className="glass-preview">
@@ -59,7 +84,7 @@ export default function BackgroundGlassSettings({ theme }: { theme: ResolvedThem
         <strong>Card</strong>
       </div>
     </div>
-    <div className="glass-sliders">{(['sidebarOpacity', 'opacity', 'blur', 'shine'] as const).map(slider)}</div>
+    <div className="glass-sliders">{(['opacity', 'blur', 'shine'] as const).map(slider)}</div>
     <details className="glass-advanced">
       <summary>Advanced</summary>
       <div className="glass-sliders">{(['angle', 'glow', 'border', 'shadow'] as const).map(slider)}</div>
