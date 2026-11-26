@@ -137,6 +137,7 @@ export default function SubjectAnalytics({ mocks, profile, mode, subject, view =
         scorePct: percentage(m.score, m.maxScore),
         maxScore: m.maxScore,
     }));
+    const showTrendDots = points.length <= 40;
     const scoreAxisMax = Math.max(1, ...points.map((p) => p.maxScore));
     const scoreAxisMin = Math.min(0, ...points.map(point => point.score));
     const accuracyPoints = points.filter(point => point.accuracy !== null);
@@ -245,7 +246,7 @@ export default function SubjectAnalytics({ mocks, profile, mode, subject, view =
                   <XAxis dataKey="label" tick={{ fontSize: 12, fill: "var(--muted)" }}/>
                   <YAxis tick={{ fontSize: 12, fill: "var(--muted)" }} domain={[scoreAxisMin, scoreAxisMax]} allowDataOverflow={false} tickFormatter={(value: number) => Number(value.toFixed(1)).toString()}/>
                   <Tooltip contentStyle={{ background: "var(--solid-surface)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: 10, fontSize: 12 }} labelFormatter={(_v, p) => p?.[0]?.payload?.name ?? ""}/>
-                  <Area type="linear" isAnimationActive={false} dataKey="score" name="Score (marks)" stroke="var(--accent)" strokeWidth={3} fill={`url(#${chartId}-score)`} dot={{ r: 3, strokeWidth: 2, fill: "var(--solid-surface)" }} activeDot={{ r: 6, strokeWidth: 3, stroke: "var(--solid-surface)" }}/>
+                  <Area type="linear" isAnimationActive={false} dataKey="score" name="Score (marks)" stroke="var(--accent)" strokeWidth={3} fill={`url(#${chartId}-score)`} dot={showTrendDots ? { r: 3, strokeWidth: 2, fill: "var(--solid-surface)" } : false} activeDot={{ r: 6, strokeWidth: 3, stroke: "var(--solid-surface)" }}/>
                 </AreaChart>
               </ResponsiveContainer>) : (<div className="v22-empty">No mocks recorded</div>)}
           </article>
@@ -272,7 +273,7 @@ export default function SubjectAnalytics({ mocks, profile, mode, subject, view =
                 fill: "#10b981",
                 fontSize: 10,
             }}/>
-                  <Area type="linear" isAnimationActive={false} dataKey="accuracy" name="Accuracy" stroke="var(--success)" strokeWidth={3} fill={`url(#${chartId}-accuracy)`} dot={{ r: 3, strokeWidth: 2, fill: "var(--solid-surface)" }} activeDot={{ r: 6, strokeWidth: 3, stroke: "var(--solid-surface)" }}/>
+                  <Area type="linear" isAnimationActive={false} dataKey="accuracy" name="Accuracy" stroke="var(--success)" strokeWidth={3} fill={`url(#${chartId}-accuracy)`} dot={showTrendDots ? { r: 3, strokeWidth: 2, fill: "var(--solid-surface)" } : false} activeDot={{ r: 6, strokeWidth: 3, stroke: "var(--solid-surface)" }}/>
                 </AreaChart>
               </ResponsiveContainer>) : (<div className="v22-empty">No recorded attempts for accuracy</div>)}
           </article>
