@@ -5,7 +5,6 @@ export type GlassSettings = {
   angle: number;
   glow: number;
   opacity: number;
-  sidebarOpacity: number;
   blur: number;
   border: number;
   shine: number;
@@ -16,8 +15,7 @@ export type GlassSettings = {
 export const glassSliders = {
   angle: { label: 'Gradient direction', min: 0, max: 360, unit: '°' },
   glow: { label: 'Glow intensity', min: 0, max: 100, unit: '%' },
-  opacity: { label: 'Card transparency', min: 0, max: 100, unit: '%', inverted: true },
-  sidebarOpacity: { label: 'Sidebar transparency', min: 0, max: 100, unit: '%', inverted: true },
+  opacity: { label: 'Sidebar and card transparency', min: 0, max: 100, unit: '%', inverted: true },
   blur: { label: 'Frost blur', min: 0, max: 16, unit: ' px' },
   border: { label: 'Edge brightness', min: 0, max: 100, unit: '%' },
   shine: { label: 'Reflection strength', min: 0, max: 100, unit: '%' },
@@ -25,9 +23,9 @@ export const glassSliders = {
 } as const;
 
 export const glassPresets = {
-  'Navy Glass': { colors: ['#355cb4', '#513780', '#177280'], angle: 135, glow: 75, opacity: 48, sidebarOpacity: 24, blur: 6, border: 48, shine: 40, shadow: 30, performance: true },
-  'Violet Mist': { colors: ['#a25bd4', '#5346a9', '#b9548e'], angle: 145, glow: 84, opacity: 43, sidebarOpacity: 20, blur: 8, border: 56, shine: 48, shadow: 34, performance: true },
-  Pearl: { colors: ['#a7c0ef', '#c5afed', '#9accd5'], angle: 135, glow: 80, opacity: 50, sidebarOpacity: 25, blur: 5, border: 52, shine: 44, shadow: 22, performance: true },
+  'Navy Glass': { colors: ['#355cb4', '#513780', '#177280'], angle: 135, glow: 75, opacity: 48, blur: 6, border: 48, shine: 40, shadow: 30, performance: true },
+  'Violet Mist': { colors: ['#a25bd4', '#5346a9', '#b9548e'], angle: 145, glow: 84, opacity: 43, blur: 8, border: 56, shine: 48, shadow: 34, performance: true },
+  Pearl: { colors: ['#a7c0ef', '#c5afed', '#9accd5'], angle: 135, glow: 80, opacity: 50, blur: 5, border: 52, shine: 44, shadow: 22, performance: true },
 } satisfies Record<string, GlassSettings>;
 
 export const defaultGlass: Record<ResolvedTheme, GlassSettings> = {
@@ -53,10 +51,32 @@ export const accentPresets = {
   teal: ['#62d3c5', '#08776d'], rose: ['#f49eb6', '#a6325b'], amber: ['#eac071', '#805b0b'],
 } as const;
 export const isHex = (value: unknown): value is string => typeof value === 'string' && /^#[\da-f]{6}$/i.test(value);
+const rgb = (hex: string) => [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16));
+
+export function parseGlassColor(value: unknown) {
+  if (typeof value !== 'string') return null;
+  const input = value.trim();
+  if (isHex(input)) return { hex: input.toLowerCase(), alpha: 1 };
+  const match = /^(rgb|rgba)\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*(\d+(?:\.\d+)?|\.\d+))?\s*\)$/i.exec(input);
+  if (!match || (match[1].toLowerCase() === 'rgba') !== (match[5] !== undefined)) return null;
+  const channels = match.slice(2, 5).map(Number);
+  const alpha = match[5] === undefined ? 1 : Number(match[5]);
+  if (channels.some(channel => channel > 255) || alpha > 1) return null;
+  return { hex: '#' + channels.map(channel => channel.toString(16).padStart(2, '0')).join(''), alpha };
+}
+
+export function glassRgba(hex: string, alpha: number): string {
+  return `rgba(${rgb(hex).join(', ')}, ${Number(alpha.toFixed(4))})`;
+}
+
+export function normalizeGlassColor(value: unknown): string | null {
+  const color = parseGlassColor(value);
+  return color ? (color.alpha === 1 ? color.hex : glassRgba(color.hex, color.alpha)) : null;
+}
 
 function normalizeGlass(value: unknown, theme: ResolvedTheme): GlassSettings {
   const defaults = defaultGlass[theme];
-  if (value === 'off') return { ...defaults, opacity: 100, sidebarOpacity: 100, glow: 0, shine: 0, blur: 0 };
+  if (value === 'off') return { ...defaults, opacity: 100, glow: 0, shine: 0, blur: 0 };
   if (value === 'subtle') return { ...defaults, opacity: theme === 'light' ? 82 : 76, blur: 0 };
   if (value === 'frosted') return { ...defaults, opacity: theme === 'light' ? 66 : 62, blur: 8 };
   const modes = value as Partial<Record<ResolvedTheme, Partial<GlassSettings>>> | undefined;
@@ -71,7 +91,7 @@ function normalizeGlass(value: unknown, theme: ResolvedTheme): GlassSettings {
   }
   const safeColor = (index: 0 | 1 | 2) => {
     const color = settings?.colors?.[index];
-    return isHex(color) ? color.toLowerCase() : defaults.colors[index];
+    return normalizeGlassColor(color) ?? defaults.colors[index];
   };
   result.colors = [safeColor(0), safeColor(1), safeColor(2)];
   if (typeof settings?.performance === 'boolean') result.performance = settings.performance;
@@ -79,14 +99,17 @@ function normalizeGlass(value: unknown, theme: ResolvedTheme): GlassSettings {
 }
 
 export function glassVariables(settings: GlassSettings) {
+  const [start, middle, end] = settings.colors.map(color => parseGlassColor(color) ?? { hex: '#000000', alpha: 0 });
+  const glow = settings.glow * .38;
   return {
-    '--glass-color-start': settings.colors[0],
-    '--glass-color-middle': settings.colors[1],
-    '--glass-color-end': settings.colors[2],
+    '--glass-color-start': start.hex,
+    '--glass-color-middle': middle.hex,
+    '--glass-color-end': end.hex,
+    '--glass-glow-start': `${glow * start.alpha}%`,
+    '--glass-glow-middle': `${glow * middle.alpha}%`,
+    '--glass-glow-end': `${glow * end.alpha}%`,
     '--glass-angle': `${settings.angle}deg`,
-    '--glass-glow': `${settings.glow * .38}%`,
     '--glass-opacity': `${settings.opacity}%`,
-    '--glass-sidebar-opacity': `${settings.sidebarOpacity}%`,
     '--glass-blur': `${settings.performance ? Math.min(6, settings.blur) : settings.blur}px`,
     '--glass-border': settings.border / 100,
     '--glass-shine': settings.shine / 100,
@@ -106,7 +129,6 @@ export function normalizeAppearance(value: unknown): Appearance {
     density: input.density === 'compact' ? 'compact' : 'comfortable',
   };
 }
-const rgb = (hex: string) => [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16));
 const luminance = (hex: string) => rgb(hex).map(channel => {
   const value = channel / 255;
   return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
