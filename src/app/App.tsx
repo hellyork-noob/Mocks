@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, type CSSProperties } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useUI } from "./uiStore";
 import { useWorkspaceData } from "./useWorkspaceData";
 import Sidebar from "./Sidebar";
@@ -7,6 +7,9 @@ import { appearanceColors, glassVariables } from "./appearance";
 import { useResolvedTheme } from "./useResolvedTheme";
 import FocusTimerController from "../features/study/FocusTimerController";
 import FocusTimerIndicator from "../features/study/FocusTimerIndicator";
+import QuickTaskDialog from "../features/study/QuickTaskDialog";
+import TaskReminders from "../features/study/TaskReminders";
+import { localDateKey } from "../features/study/studyMath";
 const StudyPlannerPage = lazy(() => import("../features/study/StudyPlannerPage"));
 const AnalyticsPage = lazy(() => import('../features/analytics/AnalyticsPage'));
 const MockForm = lazy(() => import('../features/mocks/MockForm'));
@@ -17,6 +20,18 @@ const PlaylistBoard = lazy(() => import('../features/playlists/PlaylistBoard').t
 export default function App() {
     const { view, theme, compact, setView, exam, setExam, setSettingsSection, } = useUI();
     const { mocks, exams, playlists, customProfiles, tasks, goals, sessions, reload, dbReady, dbError } = useWorkspaceData();
+    const [studyDay, setStudyDay] = useState(localDateKey);
+    const [quickTaskOpen, setQuickTaskOpen] = useState(false);
+    useEffect(() => {
+        function handleQuickTask(event: KeyboardEvent) {
+            if (event.repeat || event.isComposing || event.defaultPrevented || !event.altKey || !event.shiftKey ||
+                event.ctrlKey || event.metaKey || event.code !== 'KeyQ' || document.querySelector('.modal-layer')) return;
+            event.preventDefault();
+            if (dbReady) setQuickTaskOpen(true);
+        }
+        window.addEventListener('keydown', handleQuickTask);
+        return () => window.removeEventListener('keydown', handleQuickTask);
+    }, [dbReady]);
     const availableExams = useMemo(() => [...new Set([
         ...customProfiles.map(profile => profile.key),
         ...mocks.map(mock => mock.exam).filter(Boolean),
@@ -68,8 +83,11 @@ export default function App() {
         </div>)}
       <FocusTimerController onSaved={reload}/>
       <FocusTimerIndicator theme={resolvedTheme} accent={colors.accent} onAccent={colors.onAccent}/>
-      <Sidebar availableExams={availableExams}/>
-      <main aria-label={view}>
+      <Sidebar availableExams={availableExams} quickTaskEnabled={dbReady} onQuickTask={() => setQuickTaskOpen(true)}/>
+      {quickTaskOpen && <QuickTaskDialog day={view === 'Study Planner' ? studyDay : localDateKey()}
+        onClose={() => setQuickTaskOpen(false)} onSaved={() => { setQuickTaskOpen(false); reload(); }}/>}
+      <TaskReminders tasks={tasks} onChange={reload} onOpen={day => { setStudyDay(day); setView('Study Planner'); }}/>
+      <main aria-label={view} className={view === "Study Planner" ? "study-workspace" : undefined}>
         <section className="content">
     <Suspense fallback={<div className="panel" role="status">Loading page?</div>}>
           {view === "Analytics" &&
@@ -99,7 +117,7 @@ export default function App() {
           {view === "Mock History" && (<HistoryPage mocks={mocks} exam={exam} customProfiles={customProfiles} reload={reload}/>)}
           {view === "Exam Countdown" && (<CountdownBoard exams={exams} onChange={reload}/>)}{" "}
           {view === "Study Playlist" && (<PlaylistBoard playlists={playlists} onChange={reload}/>)}
-          {view === "Study Planner" && <StudyPlannerPage tasks={tasks} goals={goals} sessions={sessions} onChange={reload}/>}
+          {view === "Study Planner" && <StudyPlannerPage day={studyDay} onDayChange={setStudyDay} tasks={tasks} goals={goals} sessions={sessions} onChange={reload}/>}
           {view === "Settings" && (<SettingsPage mocks={mocks} customProfiles={customProfiles} reload={reload}/>)}
     </Suspense>
         </section>
